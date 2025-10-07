@@ -1,7 +1,7 @@
 import os
 import base64
 from openai import AzureOpenAI
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 from analyzer import extract_scenes
 from dotenv import load_dotenv
@@ -11,6 +11,9 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# Base URL for the API (used for generating full URLs)
+BASE_URL = os.getenv("BASE_URL", "https://api.clip.hurated.com")
 
 # Initialize Azure OpenAI client
 client = AzureOpenAI(
@@ -31,6 +34,11 @@ def health():
             "storage": "operational"
         }
     })
+
+@app.route("/output/<path:filename>", methods=["GET"])
+def serve_output(filename):
+    """Serve static files from output directory"""
+    return send_from_directory("output", filename)
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
@@ -77,8 +85,11 @@ def analyze():
         except Exception as e:
             desc = f"Error generating description: {str(e)}"
 
+        # Generate full URL for the image
+        img_url = f"{BASE_URL}/{img}"
+        
         markdown += f"## Scene {i}\n"
-        markdown += f"![Scene {i}]({img})\n"
+        markdown += f"![Scene {i}]({img_url})\n"
         markdown += f"- Description: {desc}\n\n"
 
     # Save markdown
