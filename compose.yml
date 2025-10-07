@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: clipweaver-backend
+    ports:
+      - "${BACKEND_PORT:-13000}:${BACKEND_PORT:-13000}"
+    environment:
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_KEY=${AZURE_OPENAI_KEY}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME}
+      - BACKEND_PORT=${BACKEND_PORT:-13000}
+      - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
+    volumes:
+      - ./backend:/app
+      - ./output:/app/output
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - clipweaver-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: clipweaver-frontend
+    ports:
+      - "${FRONTEND_PORT:-14000}:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api.clip.hurated.com
+      - PORT=3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - clipweaver-network
+    depends_on:
+      - backend
+
+networks:
+  clipweaver-network:
+    driver: bridge

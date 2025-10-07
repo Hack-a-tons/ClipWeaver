@@ -10,12 +10,12 @@ Below is a step-by-step 2-hour implementation plan, with minimal commands, archi
 
 ### 🕒 Time Breakdown
 ```
-Time	Task	Description
-0:00–0:10	Setup	Prepare repo, environment, and install dependencies
-0:10–0:40	Scene Detection	Split video into scenes + extract 3 thumbnails per scene
+Time	    Task	                Description
+0:00–0:10	Setup	                Prepare repo, environment, and install dependencies
+0:10–0:40	Scene Detection	        Split video into scenes + extract 3 thumbnails per scene
 0:40–1:10	AI Scene Descriptions	Generate Markdown from screenshots using GPT
 1:10–1:40	Frontend UI	Simple upload + display storyboard in Bolt.new
-1:40–2:00	Polish + Demo	Add titles, logo, short presentation pitch
+1:40–2:00	Polish + Demo	        Add titles, logo, short presentation pitch
 ```
 
 ⸻
@@ -46,7 +46,8 @@ Requirements
 Create requirements.txt:
 ```
 flask
-openai
+flask-cors
+openai>=1.0.0
 moviepy
 python-dotenv
 ```
@@ -57,7 +58,13 @@ sudo apt install ffmpeg
 ```
 Create .env and add:
 ```
-OPENAI_API_KEY=sk-...
+# Azure OpenAI configuration
+AZURE_OPENAI_ENDPOINT=https://sfo.openai.azure.com/
+AZURE_OPENAI_KEY=your_azure_key_here
+AZURE_OPENAI_API_VERSION=2025-01-01-preview
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4.1
+BACKEND_PORT=13000
+BACKEND_HOST=0.0.0.0
 ```
 
 ⸻
@@ -86,12 +93,22 @@ def extract_scenes(video_path, output_dir):
 
 ### 🧠 4. AI DESCRIPTIONS → MARKDOWN (app.py)
 ```python
-import os, openai
+import os
+import base64
+from openai import AzureOpenAI
 from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 from analyzer import extract_scenes
 
 app = Flask(__name__)
-openai.api_key = os.getenv("OPENAI_API_KEY")
+CORS(app)
+
+# Initialize Azure OpenAI client
+client = AzureOpenAI(
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    api_key=os.getenv("AZURE_OPENAI_KEY"),
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+)
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
@@ -104,9 +121,25 @@ def analyze():
 
     markdown = "# Storyboard\n\n"
     for i, img in enumerate(scenes, 1):
-        prompt = f"Describe the scene in this image briefly and vividly, as if for a video storyboard."
+        prompt = "Describe the scene in this image briefly and vividly, as if for a video storyboard."
+        
+        # Encode image to base64 for Azure OpenAI
         with open(img, "rb") as f:
-            desc = openai.images.generate_description(f, prompt)  # Pseudo; see below note
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        
+        # Call Azure OpenAI with vision
+        response = client.chat.completions.create(
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that describes video scenes."},
+                {"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}}
+                ]}
+            ],
+            max_tokens=300
+        )
+        desc = response.choices[0].message.content.strip()
 
         markdown += f"## Scene {i}\n"
         markdown += f"![Scene {i}]({img})\n"
@@ -118,35 +151,22 @@ def analyze():
     return send_file(md_path, as_attachment=True)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("BACKEND_PORT", 13000)))
 ```
 
 #### 🧩 Note:
-For image description, since OpenAI doesn’t yet expose direct images.generate_description(), use GPT-4-vision style call via API:
-```python
-resp = openai.ChatCompletion.create(
-    model="gpt-4o-mini",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant that describes video scenes."},
-        {"role": "user", "content": [
-            {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": f"file://{os.path.abspath(img)}"}
-        ]}
-    ]
-)
-desc = resp.choices[0].message.content.strip()
-```
+The code above uses Azure OpenAI's vision capabilities. Make sure your Azure deployment supports vision models (GPT-4 with vision). The image is encoded to base64 and sent as a data URL in the API request.
 ⸻
 
 ### 🎨 5. FRONTEND (Bolt.new)
 
 Use Bolt.new to make a simple 1-page web app:
 	•	Upload video
-	•	Button “Analyze”
+	•	Button "Analyze"
 	•	Show Markdown output as cards.
 
 You can scaffold this with:
-
+```jsx
 import { useState } from "react";
 
 export default function App() {
@@ -156,7 +176,7 @@ export default function App() {
   const uploadAndAnalyze = async () => {
     const formData = new FormData();
     formData.append("video", file);
-    const res = await fetch("http://localhost:5000/analyze", {
+    const res = await fetch("http://localhost:13000/analyze", {
       method: "POST",
       body: formData
     });
