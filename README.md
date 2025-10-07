@@ -11,7 +11,7 @@
 
 Instead of generating new clips, ClipWeaver **analyzes**, **organizes**, and **weaves** existing clips into structured narratives. It detects scenes, describes them with AI, and generates storyboards or even final composite videos.
 
-This project was prototyped during **#SFTechWeek — Vibe Space Hackathon** as a 2-hour demo, and is now expanding into a full-featured AI storytelling framework.
+This project was prototyped during **#SFTechWeek — [Vibe Space Hackathon](https://partiful.com/e/DHxYqtnTfGg5O0IXn5L4)** as a 2-hour demo, and is now expanding into a full-featured AI storytelling framework.
 
 ---
 
@@ -60,7 +60,7 @@ It **understands** and **curates** what’s already generated — turning chaos 
 
 ## ⚡ Hackathon MVP: *ClipWeaver Lite*
 
-A 2-hour demo built for **Vibe Space @ #SFTechWeek**  
+A 2-hour demo built for **[Vibe Space](https://partiful.com/e/DHxYqtnTfGg5O0IXn5L4) @ #SFTechWeek**  
 > “From raw clip to AI-generated storyboard — in one click.”
 
 ### 🎯 MVP Goals
@@ -78,7 +78,7 @@ A 2-hour demo built for **Vibe Space @ #SFTechWeek**
 ✅ Simple Bolt.new UI  
 
 ### 🖥️ Folder Structure
-
+```
 clipweaver-lite/
 ├── backend/
 │   ├── app.py
@@ -90,6 +90,7 @@ clipweaver-lite/
 ├── frontend/
 │   └── (Bolt.new project)
 └── sample.mp4
+```
 
 ### 🛠️ Setup Instructions
 
@@ -173,10 +174,10 @@ ClipWeaver — the AI Storyboarder for AI Videos.
 
 ⸻
 
-👤 Author
+👤 Authors
 
-Denis Bystruev
-Built during #SFTechWeek — Vibe Space Hackathon
+Denis Bystruev, Valerii Egorov
+Built during #SFTechWeek — [Vibe Space Hackathon](https://partiful.com/e/DHxYqtnTfGg5O0IXn5L4)
 Location: Frontier Tower, San Francisco
 Date: October 7, 2025
 
@@ -184,5 +185,5 @@ Date: October 7, 2025
 
 📜 License
 
-MIT License © 2025 Denis Bystruev
+MIT License © 2025 Denis Bystruev, Valerii Egorov
 You’re free to fork, remix, or integrate this idea into your AI video tools.
