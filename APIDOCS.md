@@ -36,11 +36,14 @@ Content-Type: multipart/form-data
 **Body (Form Data):**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `video` | File | Yes | Video file (mp4, mov, avi, webm). Max size: 500MB |
+| `video` | File | No* | Video file (mp4, mov, avi, webm). Max size: 500MB |
+| `video_url` | String | No* | URL to video file. Alternative to file upload |
 | `scene_threshold` | Float | No | Scene detection sensitivity (0.1-0.9). Default: 0.06 |
 | `max_scenes` | Integer | No | Maximum scenes to extract. Default: 10 |
 | `format` | String | No | Response format: `markdown` (default) or `json` |
 | `async` | Boolean | No | Enable async processing: `true` or `false` (default) |
+
+*Either `video` file or `video_url` must be provided, but not both.
 
 **Example cURL (Markdown):**
 ```bash
@@ -50,10 +53,10 @@ curl -X POST https://api.clip.hurated.com/analyze \
   -F "max_scenes=10"
 ```
 
-**Example cURL (Async JSON):**
+**Example cURL (URL Analysis):**
 ```bash
 curl -X POST https://api.clip.hurated.com/analyze \
-  -F "video=@sample.mp4" \
+  -F "video_url=https://example.com/video.mp4" \
   -F "scene_threshold=0.06" \
   -F "max_scenes=10" \
   -F "format=json" \
@@ -401,13 +404,43 @@ async function downloadMarkdown(videoFile: File): Promise<Blob> {
   return await response.blob();
 }
 
+// Analyze video from URL
+async function analyzeVideoFromURL(videoUrl: string): Promise<AnalyzeResponse> {
+  const formData = new FormData();
+  formData.append('video_url', videoUrl);
+  formData.append('format', 'json');
+  formData.append('async', 'true');
+  
+  // Start processing
+  const startResponse = await fetch('https://api.clip.hurated.com/analyze', {
+    method: 'POST',
+    body: formData
+  });
+  
+  const { request_id } = await startResponse.json();
+  
+  // Poll for completion
+  while (true) {
+    const statusResponse = await fetch(`https://api.clip.hurated.com/status/${request_id}`);
+    const status = await statusResponse.json();
+    
+    if (status.status === 'completed') {
+      const resultResponse = await fetch(`https://api.clip.hurated.com/result/${request_id}`);
+      return await resultResponse.json();
+    } else if (status.status === 'error') {
+      throw new Error(status.error);
+    }
+    
+    // Show progress
+    console.log(`Progress: ${status.progress}% - ${status.logs[status.logs.length - 1]?.message}`);
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+}
+
 // Usage example
-const result = await analyzeVideoSync(file);
+const result = await analyzeVideoFromURL('https://example.com/video.mp4');
 console.log(`Found ${result.total_scenes} scenes`);
-result.scenes.forEach(scene => {
-  console.log(`Scene ${scene.scene_number}: ${scene.timeframe.start}s-${scene.timeframe.end}s`);
-  console.log(`Description: ${scene.description}`);
-});
 ```
 
 ### Python

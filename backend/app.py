@@ -6,6 +6,7 @@ import random
 import json
 import threading
 import re
+import requests
 from datetime import datetime
 from openai import AzureOpenAI
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -321,29 +322,65 @@ def analyze():
     # Generate unique folder for this request
     unique_folder = generate_unique_folder()
     
-    if "video" not in request.files:
-        return jsonify({"status": "error", "error": "No video file provided"}), 400
+    # Check if video_url is provided
+    video_url = request.form.get('video_url')
+    video_file = request.files.get('video')
     
-    video = request.files["video"]
-    if video.filename == "":
-        return jsonify({"status": "error", "error": "Empty filename"}), 400
+    if not video_url and not video_file:
+        return jsonify({"status": "error", "error": "Either video file or video_url must be provided"}), 400
+    
+    if video_url and video_file:
+        return jsonify({"status": "error", "error": "Provide either video file or video_url, not both"}), 400
     
     # Get processing mode
     async_mode = request.form.get('async', 'false').lower() == 'true'
     response_format = request.form.get('format', 'markdown')
-    
-    # Log video info
-    video_size = len(video.read())
-    video.seek(0)  # Reset file pointer
     
     # Create unique directories for this request
     request_dir = os.path.join("output", unique_folder)
     scene_dir = os.path.join(request_dir, "scenes")
     os.makedirs(scene_dir, exist_ok=True)
     
-    # Save uploaded video in unique directory with original filename
-    video_path = os.path.join(request_dir, video.filename)
-    video.save(video_path)
+    if video_url:
+        # Download video from URL
+        try:
+            log_status(unique_folder, f"📥 Downloading video from URL: {video_url}")
+            response = requests.get(video_url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            # Get filename from URL or use default
+            video_filename = video_url.split('/')[-1] or 'video.mp4'
+            if '?' in video_filename:
+                video_filename = video_filename.split('?')[0]
+            if not video_filename.endswith(('.mp4', '.mov', '.avi', '.webm')):
+                video_filename += '.mp4'
+            
+            video_path = os.path.join(request_dir, video_filename)
+            video_size = 0
+            
+            with open(video_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        video_size += len(chunk)
+            
+            log_status(unique_folder, f"✅ Video downloaded: {video_filename} ({video_size / (1024*1024):.2f} MB)")
+            
+        except Exception as e:
+            return jsonify({"status": "error", "error": f"Failed to download video: {str(e)}"}), 400
+    else:
+        # Handle file upload
+        if video_file.filename == "":
+            return jsonify({"status": "error", "error": "Empty filename"}), 400
+        
+        # Log video info
+        video_size = len(video_file.read())
+        video_file.seek(0)  # Reset file pointer
+        video_filename = video_file.filename
+        
+        # Save uploaded video in unique directory with original filename
+        video_path = os.path.join(request_dir, video_filename)
+        video_file.save(video_path)
     
     # Get scene detection parameters
     scene_threshold = float(request.form.get('scene_threshold', 0.06))
@@ -353,11 +390,11 @@ def analyze():
         # Start async processing
         request_status[unique_folder] = {"status": "queued", "progress": 0}
         request_logs[unique_folder] = []
-        log_status(unique_folder, f"📹 Video uploaded: {video.filename} ({video_size / (1024*1024):.2f} MB)")
+        log_status(unique_folder, f"📹 Video ready: {video_filename} ({video_size / (1024*1024):.2f} MB)")
         
         thread = threading.Thread(
             target=process_video_async,
-            args=(unique_folder, video_path, scene_dir, scene_threshold, max_scenes, response_format, video.filename, video_size)
+            args=(unique_folder, video_path, scene_dir, scene_threshold, max_scenes, response_format, video_filename, video_size)
         )
         thread.start()
         
@@ -370,10 +407,10 @@ def analyze():
         # Synchronous processing (original behavior)
         start_time = datetime.now()
         log_status(unique_folder, f"=== VIDEO ANALYSIS STARTED (ID: {unique_folder}) ===")
-        log_status(unique_folder, f"📹 Video uploaded: {video.filename} ({video_size / (1024*1024):.2f} MB)")
+        log_status(unique_folder, f"📹 Video ready: {video_filename} ({video_size / (1024*1024):.2f} MB)")
         
         # Process synchronously using the same function
-        process_video_async(unique_folder, video_path, scene_dir, scene_threshold, max_scenes, response_format, video.filename, video_size)
+        process_video_async(unique_folder, video_path, scene_dir, scene_threshold, max_scenes, response_format, video_filename, video_size)
         
         # Return result immediately
         if unique_folder in request_status and request_status[unique_folder]["status"] == "completed":
