@@ -60,6 +60,16 @@ It **understands** and **curates** what’s already generated — turning chaos 
 
 ---
 
+## 🛠️ Vibe Creation Tools
+
+| Tool | Purpose | Usage |
+|------|---------|-------|
+| **Windsurf** | API development | Dev environment |
+| **Amazon Q** | Server assistance | Production server |
+| **Bolt.new** | Web frontend | UI development |
+
+---
+
 ## ⚡ Hackathon MVP: *ClipWeaver Lite*
 
 A 2-hour demo built for **[Vibe Space](https://partiful.com/e/DHxYqtnTfGg5O0IXn5L4) @ #SFTechWeek**  
