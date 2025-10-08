@@ -99,40 +99,44 @@ def analyze():
     
     # Group screenshots by scene
     scenes_dict = {}
-    for img in scenes:
-        # Extract scene number from filename (e.g., scene_001_beginning.png)
-        basename = os.path.basename(img)
+    for screenshot_info in scenes:
+        # Extract scene number from filename
+        basename = os.path.basename(screenshot_info['path'])
         if 'scene_' in basename:
             scene_num = int(basename.split('_')[1])
             if scene_num not in scenes_dict:
                 scenes_dict[scene_num] = []
-            scenes_dict[scene_num].append(img)
+            scenes_dict[scene_num].append(screenshot_info)
     
     # Process each scene
     for scene_num in sorted(scenes_dict.keys()):
         # Sort images by position: beginning, middle, end
-        def sort_by_position(img):
-            basename = os.path.basename(img)
-            if 'beginning' in basename:
+        def sort_by_position(screenshot_info):
+            position = screenshot_info['position']
+            if position == 'beginning':
                 return 0
-            elif 'middle' in basename:
+            elif position == 'middle':
                 return 1
-            elif 'end' in basename:
+            elif position == 'end':
                 return 2
             return 3
         
-        scene_images = sorted(scenes_dict[scene_num], key=sort_by_position)
-        logger.info(f"🔍 Processing scene {scene_num} with {len(scene_images)} screenshots")
+        scene_screenshots = sorted(scenes_dict[scene_num], key=sort_by_position)
+        logger.info(f"🔍 Processing scene {scene_num} with {len(scene_screenshots)} screenshots")
         
-        # Use all screenshots for AI description
-        if scene_images:
-            prompt = "Describe this video scene based on these sequential frames (beginning, middle, end). Focus on the overall action, movement, and story progression."
+        # Get scene timing info
+        if scene_screenshots:
+            scene_start = scene_screenshots[0]['scene_start']
+            scene_end = scene_screenshots[0]['scene_end']
+            
+            # Use all screenshots for AI description
+            prompt = f"Describe this video scene (timeframe {scene_start:.1f}s - {scene_end:.1f}s) based on these sequential frames. Focus on the overall action, movement, and story progression."
             
             try:
                 # Encode all images to base64
                 image_contents = []
-                for img in scene_images:
-                    with open(img, "rb") as f:
+                for screenshot_info in scene_screenshots:
+                    with open(screenshot_info['path'], "rb") as f:
                         image_data = base64.b64encode(f.read()).decode('utf-8')
                         image_contents.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}})
                 
@@ -156,15 +160,17 @@ def analyze():
                 logger.error(f"❌ Error describing scene {scene_num}: {str(e)}")
 
             # Generate markdown for this scene
-            markdown += f"## Scene {scene_num}\n"
+            markdown += f"## Scene {scene_num} ({scene_start:.1f}s - {scene_end:.1f}s)\n"
             
-            # Add all screenshots for this scene
-            for img in scene_images:
-                img_url = f"{BASE_URL}/{img}"
-                position = os.path.basename(img).split('_')[2].split('.')[0]  # Extract position (beginning/middle/end)
-                markdown += f"![Scene {scene_num} - {position}]({img_url})\n"
+            # Add all screenshots for this scene with timestamps
+            for screenshot_info in scene_screenshots:
+                img_url = f"{BASE_URL}/{screenshot_info['path']}"
+                position = screenshot_info['position']
+                timestamp = screenshot_info['timestamp']
+                markdown += f"![Scene {scene_num} - {position} @ {timestamp:.1f}s]({img_url})\n"
             
-            markdown += f"- Description: {desc}\n\n"
+            markdown += f"- **Timeframe**: {scene_start:.1f}s - {scene_end:.1f}s ({scene_end - scene_start:.1f}s duration)\n"
+            markdown += f"- **Description**: {desc}\n\n"
 
     # Save markdown
     md_path = "output/storyboard.md"

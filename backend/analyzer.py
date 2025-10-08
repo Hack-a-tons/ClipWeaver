@@ -51,7 +51,13 @@ def extract_scene_screenshots(video_path, output_dir, scene_start, scene_end, sc
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
         if os.path.exists(filepath):
-            screenshots.append(filepath)
+            screenshots.append({
+                'path': filepath,
+                'timestamp': timestamp,
+                'position': position,
+                'scene_start': scene_start,
+                'scene_end': scene_end
+            })
     
     return screenshots
 
