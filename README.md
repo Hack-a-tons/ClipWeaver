@@ -3,6 +3,8 @@
 > **AI Storyboarder for AI Videos**  
 > Helping creators turn fragmented AI-generated clips into cohesive stories.
 
+**🌐 Live Demo:** https://clips.hurated.com
+
 ---
 
 ## 🚀 Overview
