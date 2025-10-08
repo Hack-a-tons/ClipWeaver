@@ -73,9 +73,15 @@ def analyze():
     video.save(video_path)
     logger.info(f"💾 Video saved to: {video_path}")
 
-    # Extract scenes
+    # Clean and prepare scenes directory
     scene_dir = "output/scenes"
+    if os.path.exists(scene_dir):
+        import shutil
+        shutil.rmtree(scene_dir)
+        logger.info(f"🧹 Cleaned old scenes directory")
     os.makedirs(scene_dir, exist_ok=True)
+    
+    # Extract scenes
     logger.info("🎬 Starting scene extraction...")
     scenes = extract_scenes(video_path, scene_dir)
     logger.info(f"✅ Scene extraction complete: {len(scenes)} scenes detected")
