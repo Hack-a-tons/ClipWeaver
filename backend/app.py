@@ -124,33 +124,26 @@ def analyze():
         scene_images = sorted(scenes_dict[scene_num], key=sort_by_position)
         logger.info(f"🔍 Processing scene {scene_num} with {len(scene_images)} screenshots")
         
-        # Use the middle screenshot for AI description
-        middle_img = None
-        for img in scene_images:
-            if 'middle' in os.path.basename(img):
-                middle_img = img
-                break
-        
-        if not middle_img and scene_images:
-            middle_img = scene_images[0]  # Fallback to first image
-        
-        if middle_img:
-            prompt = "Describe the scene in this image briefly and vividly, as if for a video storyboard."
+        # Use all screenshots for AI description
+        if scene_images:
+            prompt = "Describe this video scene based on these sequential frames (beginning, middle, end). Focus on the overall action, movement, and story progression."
             
             try:
-                # Encode image to base64 for Azure OpenAI
-                with open(middle_img, "rb") as f:
-                    image_data = base64.b64encode(f.read()).decode('utf-8')
+                # Encode all images to base64
+                image_contents = []
+                for img in scene_images:
+                    with open(img, "rb") as f:
+                        image_data = base64.b64encode(f.read()).decode('utf-8')
+                        image_contents.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}})
                 
-                # Call Azure OpenAI with vision
+                # Call Azure OpenAI with all images
+                messages_content = [{"type": "text", "text": prompt}] + image_contents
+                
                 response = client.chat.completions.create(
                     model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
                     messages=[
-                        {"role": "system", "content": "You are a helpful assistant that describes video scenes."},
-                        {"role": "user", "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}}
-                        ]}
+                        {"role": "system", "content": "You are a helpful assistant that describes video scenes based on multiple frames."},
+                        {"role": "user", "content": messages_content}
                     ],
                     max_tokens=300
                 )
