@@ -5,6 +5,9 @@
 
 set -e
 
+# Change to script directory
+cd "$(dirname "$0")"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -46,19 +49,10 @@ pause_with_skip() {
     echo ""
 }
 
-# Function to check if a file exists
-check_file() {
-    if [ ! -f "$1" ]; then
-        echo -e "${RED}❌ Error: File $1 not found!${NC}"
-        echo -e "${YELLOW}💡 Please provide a sample video file for testing.${NC}"
-        exit 1
-    fi
-}
-
 # Start of tests
 clear
 print_header "🎬 CLIPWEAVER API TEST SUITE"
-echo -e "${CYAN}This script will demonstrate all ClipWeaver API endpoints${NC}"
+echo -e "${CYAN}This script will test ClipWeaver API endpoints${NC}"
 echo -e "${CYAN}Base URL: ${GREEN}${API_URL}${NC}"
 echo ""
 echo -e "${YELLOW}Press any key to start...${NC}"
@@ -80,79 +74,15 @@ eval "$CURL_CMD"
 pause_with_skip
 
 # ============================================================================
-# TEST 2: Upload and Analyze Video (with sample file check)
+# TEST 2: Video Analysis Demo
 # ============================================================================
-print_header "TEST 2: Video Analysis"
+print_header "TEST 2: Video Analysis Demo"
 print_test "Upload a video file and generate AI-powered storyboard"
 
-# Check for sample video file
-VIDEO_FILE=""
-if [ -f "sample.mp4" ]; then
-    VIDEO_FILE="sample.mp4"
-elif [ -f "test.mp4" ]; then
-    VIDEO_FILE="test.mp4"
-elif [ -f "demo.mp4" ]; then
-    VIDEO_FILE="demo.mp4"
-else
-    echo -e "${YELLOW}⚠️  No sample video found. Please provide a video file.${NC}"
-    echo -e "${CYAN}Available options:${NC}"
-    echo "  1. Place a video file named 'sample.mp4' in the current directory"
-    echo "  2. Enter the path to a video file now"
-    echo ""
-    read -p "Enter video file path (or press Enter to skip): " VIDEO_FILE
-    
-    if [ -z "$VIDEO_FILE" ]; then
-        echo -e "${YELLOW}⏭️  Skipping video upload test${NC}"
-        VIDEO_FILE=""
-    elif [ ! -f "$VIDEO_FILE" ]; then
-        echo -e "${RED}❌ File not found: $VIDEO_FILE${NC}"
-        echo -e "${YELLOW}⏭️  Skipping video upload test${NC}"
-        VIDEO_FILE=""
-    fi
-fi
+echo -e "${BLUE}📤 Running video analysis demo...${NC}"
+./demo.sh --called-from-test
 
-if [ -n "$VIDEO_FILE" ]; then
-    echo -e "${GREEN}✅ Using video file: ${VIDEO_FILE}${NC}"
-    echo ""
-    
-    # Get file size
-    FILE_SIZE=$(ls -lh "$VIDEO_FILE" | awk '{print $5}')
-    echo -e "${CYAN}📊 File info:${NC}"
-    echo "  - Name: $(basename "$VIDEO_FILE")"
-    echo "  - Size: ${FILE_SIZE}"
-    echo ""
-    
-    CURL_CMD="curl -s -X POST ${API_URL}/analyze \\
-  -F \"video=@${VIDEO_FILE}\" \\
-  -F \"scene_threshold=0.4\" \\
-  -F \"max_scenes=10\" \\
-  -o storyboard_result.md"
-    
-    print_curl "$CURL_CMD"
-    
-    echo -e "${BLUE}📤 Uploading and analyzing video...${NC}"
-    eval "$CURL_CMD"
-    
-    if [ -f "storyboard_result.md" ]; then
-        echo -e "${GREEN}✅ Success! Storyboard saved to: storyboard_result.md${NC}"
-        echo ""
-        echo -e "${BLUE}📄 Preview (first 50 lines):${NC}"
-        echo -e "${CYAN}────────────────────────────────────────────────────────────${NC}"
-        head -50 storyboard_result.md
-        echo -e "${CYAN}────────────────────────────────────────────────────────────${NC}"
-        
-        # Count scenes
-        SCENE_COUNT=$(grep -c "^## Scene" storyboard_result.md || echo "0")
-        echo ""
-        echo -e "${GREEN}📊 Analysis Results:${NC}"
-        echo "  - Scenes detected: ${SCENE_COUNT}"
-        echo "  - Output file: storyboard_result.md"
-    else
-        echo -e "${RED}❌ Failed to generate storyboard${NC}"
-    fi
-    
-    pause_with_skip
-fi
+pause_with_skip
 
 # ============================================================================
 # TEST 3: API Documentation Check
@@ -205,23 +135,19 @@ echo -e "${GREEN}🎉 All tests completed successfully!${NC}"
 echo ""
 echo -e "${CYAN}📋 Summary:${NC}"
 echo "  ✅ Health check endpoint working"
-if [ -n "$VIDEO_FILE" ] && [ -f "storyboard_result.md" ]; then
-    echo "  ✅ Video analysis working"
-    echo "  ✅ Storyboard generation working"
-    echo "  ✅ Output saved to: storyboard_result.md"
-fi
+echo "  ✅ Video analysis demo completed"
 echo "  ✅ Error handling verified"
 echo ""
 echo -e "${CYAN}🔗 Next Steps:${NC}"
-echo "  1. Review the generated storyboard: cat storyboard_result.md"
-echo "  2. Check the scene thumbnails in: output/scenes/"
-echo "  3. Test the frontend: https://app.clip.hurated.com"
-echo "  4. Review API docs: cat APIDOCS.md"
+echo "  1. Run video analysis demo standalone: ./demo.sh"
+echo "  2. Test the frontend: https://app.clip.hurated.com"
+echo "  3. Review API docs: cat APIDOCS.md"
 echo ""
 echo -e "${BLUE}📚 For more information:${NC}"
 echo "  - API Documentation: APIDOCS.md"
 echo "  - Deployment Guide: DEPLOYMENT.md"
 echo "  - Backend README: backend/README.md"
+echo "  - Video Analysis Demo: ./demo.sh"
 echo ""
 echo -e "${GREEN}Thank you for testing ClipWeaver! 🎬${NC}"
 echo ""
