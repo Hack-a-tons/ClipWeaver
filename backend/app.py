@@ -69,7 +69,7 @@ def analyze():
     logger.info(f"📹 Video uploaded: {video.filename} ({video_size / (1024*1024):.2f} MB)")
     
     # Save uploaded video
-    video_path = "temp.mp4"
+    video_path = os.path.join(os.getcwd(), "temp.mp4")
     video.save(video_path)
     logger.info(f"💾 Video saved to: {video_path}")
 
@@ -97,41 +97,81 @@ def analyze():
     markdown = "# Storyboard\n\n"
     scene_descriptions = []
     
-    for i, img in enumerate(scenes, 1):
-        logger.info(f"🔍 Processing scene {i}/{len(scenes)}: {os.path.basename(img)}")
-        prompt = "Describe the scene in this image briefly and vividly, as if for a video storyboard."
+    # Group screenshots by scene
+    scenes_dict = {}
+    for img in scenes:
+        # Extract scene number from filename (e.g., scene_001_beginning.png)
+        basename = os.path.basename(img)
+        if 'scene_' in basename:
+            scene_num = int(basename.split('_')[1])
+            if scene_num not in scenes_dict:
+                scenes_dict[scene_num] = []
+            scenes_dict[scene_num].append(img)
+    
+    # Process each scene
+    for scene_num in sorted(scenes_dict.keys()):
+        # Sort images by position: beginning, middle, end
+        def sort_by_position(img):
+            basename = os.path.basename(img)
+            if 'beginning' in basename:
+                return 0
+            elif 'middle' in basename:
+                return 1
+            elif 'end' in basename:
+                return 2
+            return 3
         
-        try:
-            # Encode image to base64 for Azure OpenAI
-            with open(img, "rb") as f:
-                image_data = base64.b64encode(f.read()).decode('utf-8')
+        scene_images = sorted(scenes_dict[scene_num], key=sort_by_position)
+        logger.info(f"🔍 Processing scene {scene_num} with {len(scene_images)} screenshots")
+        
+        # Use the middle screenshot for AI description
+        middle_img = None
+        for img in scene_images:
+            if 'middle' in os.path.basename(img):
+                middle_img = img
+                break
+        
+        if not middle_img and scene_images:
+            middle_img = scene_images[0]  # Fallback to first image
+        
+        if middle_img:
+            prompt = "Describe the scene in this image briefly and vividly, as if for a video storyboard."
             
-            # Call Azure OpenAI with vision
-            response = client.chat.completions.create(
-                model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that describes video scenes."},
-                    {"role": "user", "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}}
-                    ]}
-                ],
-                max_tokens=300
-            )
-            desc = response.choices[0].message.content.strip()
-            scene_descriptions.append(desc)
-            logger.info(f"📝 Scene {i} description: {desc[:100]}...")
-        except Exception as e:
-            desc = f"Error generating description: {str(e)}"
-            scene_descriptions.append(desc)
-            logger.error(f"❌ Error describing scene {i}: {str(e)}")
+            try:
+                # Encode image to base64 for Azure OpenAI
+                with open(middle_img, "rb") as f:
+                    image_data = base64.b64encode(f.read()).decode('utf-8')
+                
+                # Call Azure OpenAI with vision
+                response = client.chat.completions.create(
+                    model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that describes video scenes."},
+                        {"role": "user", "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}}
+                        ]}
+                    ],
+                    max_tokens=300
+                )
+                desc = response.choices[0].message.content.strip()
+                scene_descriptions.append(desc)
+                logger.info(f"📝 Scene {scene_num} description: {desc[:100]}...")
+            except Exception as e:
+                desc = f"Error generating description: {str(e)}"
+                scene_descriptions.append(desc)
+                logger.error(f"❌ Error describing scene {scene_num}: {str(e)}")
 
-        # Generate full URL for the image
-        img_url = f"{BASE_URL}/{img}"
-        
-        markdown += f"## Scene {i}\n"
-        markdown += f"![Scene {i}]({img_url})\n"
-        markdown += f"- Description: {desc}\n\n"
+            # Generate markdown for this scene
+            markdown += f"## Scene {scene_num}\n"
+            
+            # Add all screenshots for this scene
+            for img in scene_images:
+                img_url = f"{BASE_URL}/{img}"
+                position = os.path.basename(img).split('_')[2].split('.')[0]  # Extract position (beginning/middle/end)
+                markdown += f"![Scene {scene_num} - {position}]({img_url})\n"
+            
+            markdown += f"- Description: {desc}\n\n"
 
     # Save markdown
     md_path = "output/storyboard.md"
@@ -146,7 +186,8 @@ def analyze():
     logger.info("=== ANALYSIS COMPLETE ===")
     logger.info(f"📊 ANALYTICS SUMMARY:")
     logger.info(f"   • Video: {video.filename} ({video_size / (1024*1024):.2f} MB)")
-    logger.info(f"   • Scenes detected: {len(scenes)}")
+    logger.info(f"   • Scenes detected: {len(scenes_dict)}")
+    logger.info(f"   • Screenshots extracted: {len(scenes)}")
     logger.info(f"   • Processing time: {processing_time:.2f} seconds")
     logger.info(f"   • Output: {md_path}")
     logger.info(f"📋 SCENE DESCRIPTIONS:")
