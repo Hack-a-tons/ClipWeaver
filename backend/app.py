@@ -28,6 +28,7 @@ def is_allowed_origin(origin):
         r'^https://bolt\.new$',
         r'^https://.*\.bolt\.new$',
         r'^https://.*\.webcontainer-api\.io$',
+        r'^https://.*\.local-credentialless\.webcontainer-api\.io$',
         r'^http://localhost(:\d+)?$',
         r'^https://clips\.hurated\.com$'
     ]
