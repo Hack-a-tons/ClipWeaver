@@ -40,6 +40,7 @@ Content-Type: multipart/form-data
 | `scene_threshold` | Float | No | Scene detection sensitivity (0.1-0.9). Default: 0.06 |
 | `max_scenes` | Integer | No | Maximum scenes to extract. Default: 10 |
 | `format` | String | No | Response format: `markdown` (default) or `json` |
+| `async` | Boolean | No | Enable async processing: `true` or `false` (default) |
 
 **Example cURL (Markdown):**
 ```bash
@@ -49,28 +50,30 @@ curl -X POST https://api.clip.hurated.com/analyze \
   -F "max_scenes=10"
 ```
 
-**Example cURL (JSON):**
+**Example cURL (Async JSON):**
 ```bash
 curl -X POST https://api.clip.hurated.com/analyze \
   -F "video=@sample.mp4" \
   -F "scene_threshold=0.06" \
   -F "max_scenes=10" \
-  -F "format=json"
+  -F "format=json" \
+  -F "async=true"
 ```
 
 #### Response
 
-**Markdown Format (Default):**
-Returns a downloadable `.md` file with the storyboard.
+**Synchronous Processing (Default):**
+
+**Markdown Format:** Returns a downloadable `.md` file with the storyboard.
 
 **JSON Format:**
 ```json
 {
   "status": "success",
+  "request_id": "1759906169_127_0_0_1_5242",
   "video_info": {
-    "filename": "sample.mp4",
-    "size_mb": 7.91,
-    "processing_time": 27.16
+    "filename": "demo.mp4",
+    "size_mb": 7.91
   },
   "scenes": [
     {
@@ -84,24 +87,35 @@ Returns a downloadable `.md` file with the storyboard.
         {
           "position": "beginning",
           "timestamp": 0.5,
-          "url": "https://api.clip.hurated.com/output/scenes/scene_001_beginning.png"
+          "url": "https://api.clip.hurated.com/output/1759906169_127_0_0_1_5242/scenes/scene_001_beginning.png"
         },
         {
           "position": "middle",
           "timestamp": 4.0,
-          "url": "https://api.clip.hurated.com/output/scenes/scene_001_middle.png"
+          "url": "https://api.clip.hurated.com/output/1759906169_127_0_0_1_5242/scenes/scene_001_middle.png"
         },
         {
           "position": "end",
           "timestamp": 7.5,
-          "url": "https://api.clip.hurated.com/output/scenes/scene_001_end.png"
+          "url": "https://api.clip.hurated.com/output/1759906169_127_0_0_1_5242/scenes/scene_001_end.png"
         }
       ],
       "description": "AI-generated scene description based on all three screenshots..."
     }
   ],
-  "markdown_url": "https://api.clip.hurated.com/output/storyboard.md",
+  "markdown_url": "https://api.clip.hurated.com/output/1759906169_127_0_0_1_5242/storyboard.md",
   "total_scenes": 3
+}
+```
+
+**Asynchronous Processing (`async=true`):**
+
+**Accepted (202):**
+```json
+{
+  "status": "accepted",
+  "request_id": "1759906130_127_0_0_1_2350",
+  "message": "Video processing started. Use /status/{request_id} to check progress."
 }
 ```
 
@@ -115,7 +129,115 @@ Returns a downloadable `.md` file with the storyboard.
 
 ---
 
-### 2. **Health Check**
+### 2. **Check Processing Status**
+
+**GET** `/status/{request_id}`
+
+Check the status and progress of an async video analysis request.
+
+#### Request
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `request_id` | String | Request ID from async analyze response |
+
+**Example:**
+```bash
+curl https://api.clip.hurated.com/status/1759906130_127_0_0_1_2350
+```
+
+#### Response
+
+**Processing (200 OK):**
+```json
+{
+  "status": "processing",
+  "progress": 65,
+  "logs": [
+    {
+      "timestamp": "2025-10-08T06:30:59.256330",
+      "level": "INFO",
+      "message": "📹 Video uploaded: demo.mp4 (7.91 MB)"
+    },
+    {
+      "timestamp": "2025-10-08T06:31:07.343739",
+      "level": "INFO", 
+      "message": "✅ Scene extraction complete: 9 scenes detected"
+    },
+    {
+      "timestamp": "2025-10-08T06:31:07.343796",
+      "level": "INFO",
+      "message": "🤖 Starting AI description generation..."
+    }
+  ],
+  "total_logs": 8
+}
+```
+
+**Completed (200 OK):**
+```json
+{
+  "status": "completed",
+  "progress": 100,
+  "result": {
+    "status": "success",
+    "request_id": "1759905059_127_0_0_1_8539",
+    "scenes": [...],
+    "total_scenes": 3
+  },
+  "logs": [...],
+  "total_logs": 12
+}
+```
+
+**Error (200 OK):**
+```json
+{
+  "status": "error",
+  "error": "Scene detection failed: Invalid video format",
+  "logs": [...],
+  "total_logs": 3
+}
+```
+
+---
+
+### 3. **Get Processing Result**
+
+**GET** `/result/{request_id}`
+
+Retrieve the final result of a completed async video analysis.
+
+#### Request
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `request_id` | String | Request ID from async analyze response |
+
+**Example:**
+```bash
+curl https://api.clip.hurated.com/result/1759906130_127_0_0_1_2350
+```
+
+#### Response
+
+**Success (200 OK):**
+- **JSON Format**: Returns the complete analysis result as JSON
+- **Markdown Format**: Returns the storyboard file for download
+
+**Error (400 Bad Request):**
+```json
+{
+  "status": "error",
+  "error": "Request not completed. Current status: processing"
+}
+```
+
+---
+
+### 4. **Health Check**
 
 **GET** `/health`
 
@@ -153,11 +275,11 @@ Retrieve generated storyboard files and scene thumbnails.
 
 **Examples:**
 ```bash
-# Get storyboard markdown
-curl https://api.clip.hurated.com/output/storyboard.md
+# Get storyboard markdown (use actual request_id from your analysis)
+curl https://api.clip.hurated.com/output/1759906130_127_0_0_1_2350/storyboard.md
 
-# Get scene thumbnail
-curl https://api.clip.hurated.com/output/scenes/scene_001_beginning.png
+# Get scene thumbnail (use actual request_id from your analysis)
+curl https://api.clip.hurated.com/output/1759906130_127_0_0_1_2350/scenes/scene_001_beginning.png
 ```
 
 ---
@@ -215,8 +337,8 @@ interface AnalyzeResponse {
 ### JavaScript/TypeScript
 
 ```typescript
-// Analyze video and get JSON response
-async function analyzeVideo(videoFile: File): Promise<AnalyzeResponse> {
+// Analyze video and get JSON response (synchronous)
+async function analyzeVideoSync(videoFile: File): Promise<AnalyzeResponse> {
   const formData = new FormData();
   formData.append('video', videoFile);
   formData.append('format', 'json');
@@ -229,6 +351,40 @@ async function analyzeVideo(videoFile: File): Promise<AnalyzeResponse> {
   });
   
   return await response.json();
+}
+
+// Analyze video asynchronously with progress monitoring
+async function analyzeVideoAsync(videoFile: File): Promise<AnalyzeResponse> {
+  const formData = new FormData();
+  formData.append('video', videoFile);
+  formData.append('format', 'json');
+  formData.append('async', 'true');
+  
+  // Start processing
+  const startResponse = await fetch('https://api.clip.hurated.com/analyze', {
+    method: 'POST',
+    body: formData
+  });
+  
+  const { request_id } = await startResponse.json();
+  
+  // Poll for completion
+  while (true) {
+    const statusResponse = await fetch(`https://api.clip.hurated.com/status/${request_id}`);
+    const status = await statusResponse.json();
+    
+    if (status.status === 'completed') {
+      const resultResponse = await fetch(`https://api.clip.hurated.com/result/${request_id}`);
+      return await resultResponse.json();
+    } else if (status.status === 'error') {
+      throw new Error(status.error);
+    }
+    
+    // Show progress
+    console.log(`Progress: ${status.progress}% - ${status.logs[status.logs.length - 1]?.message}`);
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
 }
 
 // Download markdown storyboard
@@ -246,7 +402,7 @@ async function downloadMarkdown(videoFile: File): Promise<Blob> {
 }
 
 // Usage example
-const result = await analyzeVideo(file);
+const result = await analyzeVideoSync(file);
 console.log(`Found ${result.total_scenes} scenes`);
 result.scenes.forEach(scene => {
   console.log(`Scene ${scene.scene_number}: ${scene.timeframe.start}s-${scene.timeframe.end}s`);
@@ -258,9 +414,10 @@ result.scenes.forEach(scene => {
 
 ```python
 import requests
+import time
 
-def analyze_video_json(video_path):
-    """Get JSON response with scene data"""
+def analyze_video_sync(video_path):
+    """Get JSON response synchronously"""
     url = "https://api.clip.hurated.com/analyze"
     
     with open(video_path, 'rb') as f:
@@ -273,6 +430,41 @@ def analyze_video_json(video_path):
         
         response = requests.post(url, files=files, data=data)
         return response.json()
+
+def analyze_video_async(video_path):
+    """Analyze video asynchronously with progress monitoring"""
+    url = "https://api.clip.hurated.com/analyze"
+    
+    # Start processing
+    with open(video_path, 'rb') as f:
+        files = {'video': f}
+        data = {
+            'format': 'json',
+            'async': 'true',
+            'scene_threshold': 0.06,
+            'max_scenes': 10
+        }
+        
+        response = requests.post(url, files=files, data=data)
+        result = response.json()
+        request_id = result['request_id']
+    
+    # Poll for completion
+    while True:
+        status_response = requests.get(f"https://api.clip.hurated.com/status/{request_id}")
+        status = status_response.json()
+        
+        if status['status'] == 'completed':
+            result_response = requests.get(f"https://api.clip.hurated.com/result/{request_id}")
+            return result_response.json()
+        elif status['status'] == 'error':
+            raise Exception(status['error'])
+        
+        # Show progress
+        latest_log = status['logs'][-1]['message'] if status['logs'] else ''
+        print(f"Progress: {status['progress']}% - {latest_log}")
+        
+        time.sleep(2)
 
 def download_markdown(video_path, output_path):
     """Download markdown storyboard"""
@@ -288,8 +480,9 @@ def download_markdown(video_path, output_path):
             out.write(response.content)
 
 # Usage
-json_result = analyze_video_json('sample.mp4')
-print(f"Processing time: {json_result['video_info']['processing_time']}s")
+json_result = analyze_video_sync('sample.mp4')
+print(f"Request ID: {json_result['request_id']}")
+print(f"Total scenes: {json_result['total_scenes']}")
 
 for scene in json_result['scenes']:
     print(f"Scene {scene['scene_number']}: {scene['timeframe']['start']}s-{scene['timeframe']['end']}s")

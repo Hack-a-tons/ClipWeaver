@@ -111,18 +111,65 @@ if [ "$FORMAT" = "json" ]; then
     CURL_CMD="curl -s -X POST ${API_URL}/analyze \\
   -F \"video=@${VIDEO_FILE}\" \\
   -F \"format=json\" \\
-  -o ${OUTPUT_FILE}"
+  -F \"async=true\""
 else
     OUTPUT_FILE="storyboard_result.md"
     CURL_CMD="curl -s -X POST ${API_URL}/analyze \\
   -F \"video=@${VIDEO_FILE}\" \\
-  -o ${OUTPUT_FILE}"
+  -F \"async=true\""
 fi
 
 print_curl "$CURL_CMD"
 
-echo -e "${BLUE}📤 Uploading and analyzing video...${NC}"
-eval "$CURL_CMD"
+echo -e "${BLUE}📤 Uploading and starting async analysis...${NC}"
+RESPONSE=$(eval "$CURL_CMD")
+
+# Extract request ID from response
+REQUEST_ID=$(echo "$RESPONSE" | jq -r '.request_id // empty')
+
+if [ -z "$REQUEST_ID" ]; then
+    echo -e "${RED}❌ Failed to start analysis${NC}"
+    echo "$RESPONSE"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Analysis started! Request ID: ${REQUEST_ID}${NC}"
+echo -e "${BLUE}📊 Monitoring progress...${NC}"
+echo ""
+
+# Poll status until complete
+while true; do
+    STATUS_RESPONSE=$(curl -s "${API_URL}/status/${REQUEST_ID}")
+    STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
+    PROGRESS=$(echo "$STATUS_RESPONSE" | jq -r '.progress // 0')
+    
+    # Show latest log message
+    LATEST_LOG=$(echo "$STATUS_RESPONSE" | jq -r '.logs[-1].message // ""')
+    if [ -n "$LATEST_LOG" ]; then
+        echo -e "${CYAN}[${PROGRESS}%] ${LATEST_LOG}${NC}"
+    fi
+    
+    if [ "$STATUS" = "completed" ]; then
+        echo -e "${GREEN}✅ Analysis complete!${NC}"
+        break
+    elif [ "$STATUS" = "error" ]; then
+        ERROR=$(echo "$STATUS_RESPONSE" | jq -r '.error // "Unknown error"')
+        echo -e "${RED}❌ Analysis failed: ${ERROR}${NC}"
+        exit 1
+    fi
+    
+    sleep 2
+done
+
+echo ""
+echo -e "${BLUE}📥 Downloading result...${NC}"
+
+# Get final result
+if [ "$FORMAT" = "json" ]; then
+    curl -s "${API_URL}/result/${REQUEST_ID}" > "$OUTPUT_FILE"
+else
+    curl -s "${API_URL}/result/${REQUEST_ID}" -o "$OUTPUT_FILE"
+fi
 
 if [ -f "$OUTPUT_FILE" ]; then
     echo -e "${GREEN}✅ Success! Storyboard saved to: ${OUTPUT_FILE}${NC}"
