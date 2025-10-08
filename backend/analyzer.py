@@ -50,8 +50,12 @@ def extract_scenes(video_path, output_dir, scene_threshold=0.4, max_scenes=10, m
         f"{output_dir}/scene_%03d.png"
     ]
     
+    logger.info(f"🔧 FFmpeg command: {' '.join(cmd)}")
+    
     try:
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        logger.info(f"📝 FFmpeg stdout: {result.stdout.decode()[:200]}...")
+        logger.info(f"📝 FFmpeg stderr: {result.stderr.decode()[:200]}...")
         scenes = sorted(glob.glob(f"{output_dir}/scene_*.png"))
         
         # If we got scenes and they're reasonable, use them
@@ -65,6 +69,8 @@ def extract_scenes(video_path, output_dir, scene_threshold=0.4, max_scenes=10, m
             
     except subprocess.CalledProcessError as e:
         logger.info(f"⚠️ Scene detection failed, using fallback: {e}")
+        logger.info(f"📝 FFmpeg error stderr: {e.stderr.decode() if e.stderr else 'No stderr'}")
+        logger.info(f"📝 FFmpeg error stdout: {e.stdout.decode() if e.stdout else 'No stdout'}")
     
     # Clean up any partial results
     for f in glob.glob(f"{output_dir}/scene_*.png"):
@@ -72,12 +78,20 @@ def extract_scenes(video_path, output_dir, scene_threshold=0.4, max_scenes=10, m
     
     # Fallback: Extract scenes based on video length
     if duration > 0:
-        # For videos longer than 10s, ensure minimum scenes
-        if duration > 10:
+        # For videos longer than 15s, ensure at least 3 scenes
+        if duration > 15:
+            # Extract scenes at regular intervals, minimum 3 for longer videos
+            min_scenes_for_long = max(3, min_scenes)
+            interval = max(duration / min_scenes_for_long, 3)  # At least 3s apart
+            num_scenes = min(int(duration / interval), max_scenes)
+            if num_scenes < min_scenes_for_long and duration > 15:
+                num_scenes = min(min_scenes_for_long, max_scenes)
+            logger.info(f"📐 Long video ({duration:.1f}s): extracting {num_scenes} scenes at {duration/num_scenes:.1f}s intervals")
+        elif duration > 10:
             # Extract scenes at regular intervals
             interval = max(duration / min_scenes, 3)  # At least 3s apart
             num_scenes = min(int(duration / interval), max_scenes)
-            logger.info(f"📐 Long video ({duration:.1f}s): extracting {num_scenes} scenes at {interval:.1f}s intervals")
+            logger.info(f"📐 Medium video ({duration:.1f}s): extracting {num_scenes} scenes at {interval:.1f}s intervals")
         else:
             # For short videos, extract fewer scenes
             num_scenes = max(1, min(int(duration / 5), max_scenes))

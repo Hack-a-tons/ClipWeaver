@@ -82,9 +82,10 @@ def analyze():
     os.makedirs(scene_dir, exist_ok=True)
     
     # Get scene detection parameters
-    scene_threshold = float(request.form.get('scene_threshold', 0.4))
+    scene_threshold = float(request.form.get('scene_threshold', 0.06))
     max_scenes = int(request.form.get('max_scenes', 10))
     logger.info(f"🎛️ Scene detection params: threshold={scene_threshold}, max_scenes={max_scenes}")
+    logger.info(f"📋 API call parameters: video={video.filename}, scene_threshold={scene_threshold}, max_scenes={max_scenes}")
     
     # Extract scenes
     logger.info("🎬 Starting scene extraction...")

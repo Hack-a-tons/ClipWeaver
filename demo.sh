@@ -78,8 +78,6 @@ echo ""
 
 CURL_CMD="curl -s -X POST ${API_URL}/analyze \\
   -F \"video=@${VIDEO_FILE}\" \\
-  -F \"scene_threshold=0.4\" \\
-  -F \"max_scenes=10\" \\
   -o storyboard_result.md"
 
 print_curl "$CURL_CMD"

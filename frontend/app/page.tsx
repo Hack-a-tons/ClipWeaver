@@ -6,7 +6,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [result, setResult] = useState<string>('')
-  const [sceneThreshold, setSceneThreshold] = useState(0.4)
+  const [sceneThreshold, setSceneThreshold] = useState(0.06)
   const [maxScenes, setMaxScenes] = useState(10)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
