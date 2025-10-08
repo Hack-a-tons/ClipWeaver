@@ -1,6 +1,8 @@
 import os
 import base64
 import logging
+import time
+import random
 from datetime import datetime
 from openai import AzureOpenAI
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -28,6 +30,16 @@ client = AzureOpenAI(
     api_version=os.getenv("AZURE_OPENAI_API_VERSION")
 )
 
+def generate_unique_folder():
+    """Generate unique folder name based on timestamp, IP, and random value"""
+    timestamp = int(time.time())
+    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'unknown'))
+    # Clean IP for folder name (replace dots/colons with underscores)
+    clean_ip = client_ip.replace('.', '_').replace(':', '_')
+    random_val = random.randint(1000, 9999)
+    folder_name = f"{timestamp}_{clean_ip}_{random_val}"
+    return folder_name
+
 @app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint"""
@@ -52,7 +64,10 @@ def serve_output(filename):
 def analyze():
     """Analyze video and generate storyboard"""
     start_time = datetime.now()
-    logger.info("=== VIDEO ANALYSIS STARTED ===")
+    
+    # Generate unique folder for this request
+    unique_folder = generate_unique_folder()
+    logger.info(f"=== VIDEO ANALYSIS STARTED (ID: {unique_folder}) ===")
     
     if "video" not in request.files:
         logger.error("No video file provided in request")
@@ -66,20 +81,18 @@ def analyze():
     # Log video info
     video_size = len(video.read())
     video.seek(0)  # Reset file pointer
-    logger.info(f"📹 Video uploaded: {video.filename} ({video_size / (1024*1024):.2f} MB)")
+    logger.info(f"📹 Video uploaded: {video.filename} ({video_size / (1024*1024):.2f} MB) - ID: {unique_folder}")
     
-    # Save uploaded video
-    video_path = os.path.join(os.getcwd(), "temp.mp4")
+    # Create unique directories for this request
+    request_dir = os.path.join("output", unique_folder)
+    scene_dir = os.path.join(request_dir, "scenes")
+    os.makedirs(scene_dir, exist_ok=True)
+    logger.info(f"📁 Created unique directory: {request_dir}")
+    
+    # Save uploaded video in unique directory
+    video_path = os.path.join(request_dir, "temp.mp4")
     video.save(video_path)
     logger.info(f"💾 Video saved to: {video_path}")
-
-    # Clean and prepare scenes directory
-    scene_dir = "output/scenes"
-    if os.path.exists(scene_dir):
-        import shutil
-        shutil.rmtree(scene_dir)
-        logger.info(f"🧹 Cleaned old scenes directory")
-    os.makedirs(scene_dir, exist_ok=True)
     
     # Get scene detection parameters
     scene_threshold = float(request.form.get('scene_threshold', 0.06))
@@ -164,7 +177,9 @@ def analyze():
             
             # Add all screenshots for this scene with timestamps
             for screenshot_info in scene_screenshots:
-                img_url = f"{BASE_URL}/{screenshot_info['path']}"
+                # Update path to include unique folder
+                relative_path = os.path.relpath(screenshot_info['path'], "output")
+                img_url = f"{BASE_URL}/output/{relative_path}"
                 position = screenshot_info['position']
                 timestamp = screenshot_info['timestamp']
                 markdown += f"![Scene {scene_num} - {position} @ {timestamp:.1f}s]({img_url})\n"
@@ -172,8 +187,8 @@ def analyze():
             markdown += f"- **Timeframe**: {scene_start:.1f}s - {scene_end:.1f}s ({scene_end - scene_start:.1f}s duration)\n"
             markdown += f"- **Description**: {desc}\n\n"
 
-    # Save markdown
-    md_path = "output/storyboard.md"
+    # Save markdown in unique directory
+    md_path = os.path.join(request_dir, "storyboard.md")
     with open(md_path, "w") as f:
         f.write(markdown)
     
@@ -184,6 +199,7 @@ def analyze():
     # Log analytics summary
     logger.info("=== ANALYSIS COMPLETE ===")
     logger.info(f"📊 ANALYTICS SUMMARY:")
+    logger.info(f"   • Request ID: {unique_folder}")
     logger.info(f"   • Video: {video.filename} ({video_size / (1024*1024):.2f} MB)")
     logger.info(f"   • Scenes detected: {len(scenes_dict)}")
     logger.info(f"   • Screenshots extracted: {len(scenes)}")
@@ -216,7 +232,7 @@ def analyze():
                     {
                         "position": shot['position'],
                         "timestamp": round(shot['timestamp'], 1),
-                        "url": f"{BASE_URL}/{shot['path']}"
+                        "url": f"{BASE_URL}/output/{os.path.relpath(shot['path'], 'output')}"
                     }
                     for shot in scene_screenshots
                 ],
@@ -225,18 +241,19 @@ def analyze():
         
         return jsonify({
             "status": "success",
+            "request_id": unique_folder,
             "video_info": {
                 "filename": video.filename,
                 "size_mb": round(video_size / (1024*1024), 2),
                 "processing_time": round(processing_time, 2)
             },
             "scenes": json_scenes,
-            "markdown_url": f"{BASE_URL}/output/storyboard.md",
+            "markdown_url": f"{BASE_URL}/output/{unique_folder}/storyboard.md",
             "total_scenes": len(scenes_dict)
         })
     else:
         # Default: return markdown file
-        return send_file(md_path, as_attachment=True)
+        return send_file(md_path, as_attachment=True, download_name=f"storyboard_{unique_folder}.md")
 
 if __name__ == "__main__":
     port = int(os.getenv("BACKEND_PORT", 13000))
