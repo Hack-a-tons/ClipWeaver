@@ -55,4 +55,4 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
-storyboard_result.md
+storyboard_result.*

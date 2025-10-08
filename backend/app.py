@@ -194,7 +194,49 @@ def analyze():
         logger.info(f"   Scene {i}: {desc[:150]}{'...' if len(desc) > 150 else ''}")
     logger.info("=== END ANALYSIS ===")
 
-    return send_file(md_path, as_attachment=True)
+    # Check if JSON format is requested
+    response_format = request.form.get('format', 'markdown')
+    
+    if response_format == 'json':
+        # Build JSON response
+        json_scenes = []
+        for scene_num in sorted(scenes_dict.keys()):
+            scene_screenshots = sorted(scenes_dict[scene_num], key=lambda x: ['beginning', 'middle', 'end'].index(x['position']))
+            scene_start = scene_screenshots[0]['scene_start']
+            scene_end = scene_screenshots[0]['scene_end']
+            
+            json_scenes.append({
+                "scene_number": scene_num,
+                "timeframe": {
+                    "start": round(scene_start, 1),
+                    "end": round(scene_end, 1),
+                    "duration": round(scene_end - scene_start, 1)
+                },
+                "screenshots": [
+                    {
+                        "position": shot['position'],
+                        "timestamp": round(shot['timestamp'], 1),
+                        "url": f"{BASE_URL}/{shot['path']}"
+                    }
+                    for shot in scene_screenshots
+                ],
+                "description": scene_descriptions[scene_num - 1] if scene_num <= len(scene_descriptions) else ""
+            })
+        
+        return jsonify({
+            "status": "success",
+            "video_info": {
+                "filename": video.filename,
+                "size_mb": round(video_size / (1024*1024), 2),
+                "processing_time": round(processing_time, 2)
+            },
+            "scenes": json_scenes,
+            "markdown_url": f"{BASE_URL}/output/storyboard.md",
+            "total_scenes": len(scenes_dict)
+        })
+    else:
+        # Default: return markdown file
+        return send_file(md_path, as_attachment=True)
 
 if __name__ == "__main__":
     port = int(os.getenv("BACKEND_PORT", 13000))

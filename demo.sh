@@ -2,6 +2,7 @@
 
 # ClipWeaver Video Analysis Demo
 # This script demonstrates the video analysis functionality
+# Usage: ./demo.sh [json|markdown] [video_filename] [--called-from-test]
 
 set -e
 
@@ -18,6 +19,28 @@ NC='\033[0m' # No Color
 
 # Base URL
 API_URL="https://api.clip.hurated.com"
+
+# Parse arguments
+FORMAT="markdown"
+VIDEO_FILE=""
+CALLED_FROM_TEST=""
+
+for arg in "$@"; do
+    case $arg in
+        json|JSON)
+            FORMAT="json"
+            ;;
+        markdown|MARKDOWN)
+            FORMAT="markdown"
+            ;;
+        --called-from-test)
+            CALLED_FROM_TEST="--called-from-test"
+            ;;
+        *.mp4|*.mov|*.avi|*.webm)
+            VIDEO_FILE="$arg"
+            ;;
+    esac
+done
 
 # Function to print section headers
 print_header() {
@@ -36,17 +59,23 @@ print_curl() {
 }
 
 # Start demo
-if [ "$1" != "--called-from-test" ]; then
+if [ "$CALLED_FROM_TEST" != "--called-from-test" ]; then
     clear
     print_header "🎬 CLIPWEAVER VIDEO ANALYSIS DEMO"
     echo -e "${CYAN}This demo will analyze a video and generate an AI-powered storyboard${NC}"
+    echo -e "${CYAN}Format: ${GREEN}${FORMAT}${NC}"
     echo -e "${CYAN}Base URL: ${GREEN}${API_URL}${NC}"
     echo ""
 fi
 
 # Check for sample video file
-VIDEO_FILE=""
-if [ -f "sample.mp4" ]; then
+if [ -n "$VIDEO_FILE" ]; then
+    # Use provided video file
+    if [ ! -f "$VIDEO_FILE" ]; then
+        echo -e "${RED}❌ Video file not found: $VIDEO_FILE${NC}"
+        exit 1
+    fi
+elif [ -f "sample.mp4" ]; then
     VIDEO_FILE="sample.mp4"
 elif [ -f "test.mp4" ]; then
     VIDEO_FILE="test.mp4"
@@ -76,32 +105,67 @@ echo "  - Name: $(basename "$VIDEO_FILE")"
 echo "  - Size: ${FILE_SIZE}"
 echo ""
 
-CURL_CMD="curl -s -X POST ${API_URL}/analyze \\
+# Build curl command based on format
+if [ "$FORMAT" = "json" ]; then
+    OUTPUT_FILE="storyboard_result.json"
+    CURL_CMD="curl -s -X POST ${API_URL}/analyze \\
   -F \"video=@${VIDEO_FILE}\" \\
-  -o storyboard_result.md"
+  -F \"format=json\" \\
+  -o ${OUTPUT_FILE}"
+else
+    OUTPUT_FILE="storyboard_result.md"
+    CURL_CMD="curl -s -X POST ${API_URL}/analyze \\
+  -F \"video=@${VIDEO_FILE}\" \\
+  -o ${OUTPUT_FILE}"
+fi
 
 print_curl "$CURL_CMD"
 
 echo -e "${BLUE}📤 Uploading and analyzing video...${NC}"
 eval "$CURL_CMD"
 
-if [ -f "storyboard_result.md" ]; then
-    echo -e "${GREEN}✅ Success! Storyboard saved to: storyboard_result.md${NC}"
+if [ -f "$OUTPUT_FILE" ]; then
+    echo -e "${GREEN}✅ Success! Storyboard saved to: ${OUTPUT_FILE}${NC}"
     echo ""
     echo -e "${BLUE}📄 Preview:${NC}"
     echo -e "${CYAN}────────────────────────────────────────────────────────────${NC}"
-    head -50 storyboard_result.md
+    
+    if [ "$FORMAT" = "json" ]; then
+        # Pretty print JSON with jq if available, otherwise use cat
+        if command -v jq >/dev/null 2>&1; then
+            jq . "$OUTPUT_FILE"
+        else
+            cat "$OUTPUT_FILE"
+        fi
+    else
+        head -50 "$OUTPUT_FILE"
+    fi
+    
     echo -e "${CYAN}────────────────────────────────────────────────────────────${NC}"
     
     # Count scenes
-    SCENE_COUNT=$(grep -c "^## Scene" storyboard_result.md || echo "0")
+    if [ "$FORMAT" = "json" ]; then
+        if command -v jq >/dev/null 2>&1; then
+            SCENE_COUNT=$(jq '.total_scenes // 0' "$OUTPUT_FILE")
+        else
+            SCENE_COUNT=$(grep -o '"scene_number"' "$OUTPUT_FILE" | wc -l)
+        fi
+    else
+        SCENE_COUNT=$(grep -c "^## Scene" "$OUTPUT_FILE" || echo "0")
+    fi
+    
     echo ""
     echo -e "${GREEN}📊 Analysis Results:${NC}"
     echo "  - Scenes detected: ${SCENE_COUNT}"
-    echo "  - Output file: storyboard_result.md"
+    echo "  - Output file: ${OUTPUT_FILE}"
     echo ""
     echo -e "${CYAN}🔗 Next Steps:${NC}"
-    echo "  1. Review full storyboard: cat storyboard_result.md"
+    if [ "$FORMAT" = "json" ]; then
+        echo "  1. Review JSON data: cat ${OUTPUT_FILE}"
+        echo "  2. Parse with jq: jq '.scenes[] | .description' ${OUTPUT_FILE}"
+    else
+        echo "  1. Review full storyboard: cat ${OUTPUT_FILE}"
+    fi
     echo "  2. Check scene thumbnails: ls output/scenes/"
     echo ""
 else
@@ -109,6 +173,6 @@ else
     exit 1
 fi
 
-if [ "$1" != "--called-from-test" ]; then
+if [ "$CALLED_FROM_TEST" != "--called-from-test" ]; then
     echo -e "${GREEN}Demo complete! 🎬${NC}"
 fi

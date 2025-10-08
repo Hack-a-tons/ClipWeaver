@@ -74,13 +74,24 @@ eval "$CURL_CMD"
 pause_with_skip
 
 # ============================================================================
-# TEST 2: Video Analysis Demo
+# TEST 2: Video Analysis Demo - Markdown Format
 # ============================================================================
-print_header "TEST 2: Video Analysis Demo"
-print_test "Upload a video file and generate AI-powered storyboard"
+print_header "TEST 2A: Video Analysis Demo - Markdown Format"
+print_test "Upload a video file and generate AI-powered storyboard in Markdown format"
 
-echo -e "${BLUE}📤 Running video analysis demo...${NC}"
-./demo.sh --called-from-test
+echo -e "${BLUE}📤 Running video analysis demo (Markdown) with demo.mp4...${NC}"
+./demo.sh markdown demo.mp4 --called-from-test
+
+pause_with_skip
+
+# ============================================================================
+# TEST 2B: Video Analysis Demo - JSON Format
+# ============================================================================
+print_header "TEST 2B: Video Analysis Demo - JSON Format"
+print_test "Upload a video file and generate AI-powered storyboard in JSON format"
+
+echo -e "${BLUE}📤 Running video analysis demo (JSON) with test.mp4...${NC}"
+./demo.sh json test.mp4 --called-from-test
 
 pause_with_skip
 
@@ -135,12 +146,13 @@ echo -e "${GREEN}🎉 All tests completed successfully!${NC}"
 echo ""
 echo -e "${CYAN}📋 Summary:${NC}"
 echo "  ✅ Health check endpoint working"
-echo "  ✅ Video analysis demo completed"
+echo "  ✅ Video analysis demo (Markdown) completed"
+echo "  ✅ Video analysis demo (JSON) completed"
 echo "  ✅ Error handling verified"
 echo ""
 echo -e "${CYAN}🔗 Next Steps:${NC}"
-echo "  1. Run video analysis demo standalone: ./demo.sh"
-echo "  2. Test the frontend: https://app.clip.hurated.com"
+echo "  1. Run video analysis demo: ./demo.sh [json|markdown]"
+echo "  2. Test the frontend: https://clips.hurated.com"
 echo "  3. Review API docs: cat APIDOCS.md"
 echo ""
 echo -e "${BLUE}📚 For more information:${NC}"
