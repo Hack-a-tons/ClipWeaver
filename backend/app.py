@@ -81,9 +81,14 @@ def analyze():
         logger.info(f"🧹 Cleaned old scenes directory")
     os.makedirs(scene_dir, exist_ok=True)
     
+    # Get scene detection parameters
+    scene_threshold = float(request.form.get('scene_threshold', 0.4))
+    max_scenes = int(request.form.get('max_scenes', 10))
+    logger.info(f"🎛️ Scene detection params: threshold={scene_threshold}, max_scenes={max_scenes}")
+    
     # Extract scenes
     logger.info("🎬 Starting scene extraction...")
-    scenes = extract_scenes(video_path, scene_dir)
+    scenes = extract_scenes(video_path, scene_dir, scene_threshold, max_scenes)
     logger.info(f"✅ Scene extraction complete: {len(scenes)} scenes detected")
 
     # Generate storyboard with AI descriptions
