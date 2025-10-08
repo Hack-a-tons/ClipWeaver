@@ -493,10 +493,24 @@ for scene in json_result['scenes']:
 
 ## 🌐 CORS
 
-CORS is enabled for all origins in development. In production:
-- Allowed Origins: `*.clip.hurated.com`, `localhost:*`
-- Allowed Methods: GET, POST, OPTIONS
-- Allowed Headers: Content-Type
+CORS is configured with dynamic origin checking for security. Allowed origins:
+
+- `https://bolt.new` - Bolt.new main domain
+- `https://*.bolt.new` - All Bolt.new subdomains
+- `https://*.webcontainer-api.io` - WebContainer preview URLs
+- `http://localhost:*` - Local development (any port)
+- `https://clips.hurated.com` - Production deployment
+
+**CORS Headers:**
+- `Access-Control-Allow-Origin`: Dynamic based on request origin
+- `Access-Control-Allow-Methods`: GET, POST, PUT, DELETE, OPTIONS
+- `Access-Control-Allow-Headers`: Content-Type, Authorization, X-Client-Info, Apikey
+- `Access-Control-Max-Age`: 86400 (24 hours)
+
+**Preflight Requests:**
+- OPTIONS requests are handled automatically
+- Returns 200 status with appropriate CORS headers
+- Unauthorized origins receive responses without CORS headers
 
 ---
 

@@ -5,6 +5,7 @@ import time
 import random
 import json
 import threading
+import re
 from datetime import datetime
 from openai import AzureOpenAI
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -16,7 +17,56 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS with dynamic origin checking
+def is_allowed_origin(origin):
+    """Check if origin is allowed based on whitelist patterns"""
+    if not origin:
+        return False
+    
+    allowed_patterns = [
+        r'^https://bolt\.new$',
+        r'^https://.*\.bolt\.new$',
+        r'^https://.*\.webcontainer-api\.io$',
+        r'^http://localhost(:\d+)?$',
+        r'^https://clips\.hurated\.com$'
+    ]
+    
+    for pattern in allowed_patterns:
+        if re.match(pattern, origin):
+            return True
+    return False
+
+def handle_cors():
+    """Handle CORS headers dynamically"""
+    origin = request.headers.get('Origin')
+    
+    if is_allowed_origin(origin):
+        return {
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+            'Access-Control-Max-Age': '86400'
+        }
+    return {}
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses"""
+    cors_headers = handle_cors()
+    for header, value in cors_headers.items():
+        response.headers[header] = value
+    return response
+
+@app.before_request
+def handle_preflight():
+    """Handle OPTIONS preflight requests"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        cors_headers = handle_cors()
+        for header, value in cors_headers.items():
+            response.headers[header] = value
+        return response, 200
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
